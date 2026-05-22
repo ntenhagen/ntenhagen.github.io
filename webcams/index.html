@@ -103,6 +103,50 @@
 (function () {
 	'use strict';
 
+	// ------------------------------------------------------------------
+	// Toegangscode
+	//
+	// Vervang ACCESS_CODE hieronder door je eigen sleutel.
+	// Open de pagina met: https://jouw-domein/?k=GEHEIM123
+	// Na 1x correct openen wordt de toegang lokaal onthouden (localStorage).
+	//
+	// Let op: dit is een client-side check. Iemand die de broncode bekijkt
+	// kan de code zien. Het houdt nieuwsgierige mensen weg, geen echte
+	// aanvallers. Voor sterkere beveiliging: zie de opmerkingen in chat.
+	// ------------------------------------------------------------------
+	var ACCESS_CODE = 'GEHEIM123';
+	var AUTH_STORAGE_KEY = 'ra_cam_auth';
+
+	function getQueryParam(name) {
+		var m = location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+		return m ? decodeURIComponent(m[1]) : null;
+	}
+
+	function isAuthorized() {
+		try {
+			if (localStorage.getItem(AUTH_STORAGE_KEY) === 'granted') return true;
+		} catch (e) {}
+		var k = getQueryParam('k');
+		if (k && k === ACCESS_CODE) {
+			try { localStorage.setItem(AUTH_STORAGE_KEY, 'granted'); } catch (e) {}
+			// Strip ?k=... uit de adresbalk zonder reload.
+			if (window.history && history.replaceState) {
+				history.replaceState({}, '', location.pathname + location.hash);
+			}
+			return true;
+		}
+		return false;
+	}
+
+	if (!isAuthorized()) {
+		// Geen toegang: laat een leeg zwart scherm zien en stop hier.
+		// Geen melding/formulier zodat de pagina niets verraadt.
+		document.documentElement.style.background = '#000';
+		var bodyEl = document.body;
+		while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
+		return;
+	}
+
 	var STREAMS = [
 		{ id: 1, url: 'https://dov.radioaalsmeer.nl:8443/hls/1059_watertoren1/index.m3u8' },
 		{ id: 2, url: 'https://dov.radioaalsmeer.nl:8443/hls/1059_watertoren2/index.m3u8' }
