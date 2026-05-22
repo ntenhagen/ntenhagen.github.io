@@ -1,0 +1,29 @@
+# ----------------------------------------------------------------------
+# Beveiliging webcam-pagina
+#
+# Toegang: open https://jouw-domein/webcams/?k=GEHEIM123
+#   -> Apache zet een cookie en stuurt door naar de schone URL.
+#   -> Daarna blijft de pagina werken zolang het cookie geldig is.
+#   -> Zonder sleutel of cookie geeft de server 403 Forbidden.
+#
+# AANPASSEN: vervang GEHEIM123 hieronder (op BEIDE plekken) door je eigen
+# sleutel. Gebruik alleen letters/cijfers/streepjes, geen spaties of /.
+# ----------------------------------------------------------------------
+
+RewriteEngine On
+
+# Stap 1: juiste sleutel in URL?
+#   -> cookie zetten (30 dagen geldig) en redirect naar de URL zonder ?k=
+RewriteCond %{QUERY_STRING} (?:^|&)k=GEHEIM123(?:$|&)
+RewriteRule ^(.*)$ $1? [CO=ra_cam_access:granted:%{HTTP_HOST}:43200:/,R=302,L]
+
+# Stap 2: cookie al aanwezig?
+#   -> doorlaten
+RewriteCond %{HTTP_COOKIE} (?:^|;\s*)ra_cam_access=granted
+RewriteRule ^ - [L]
+
+# Stap 3: niets van bovenstaande -> blokkeren
+RewriteRule ^ - [F,L]
+
+# Geen directory listing als iemand /webcams/ zonder index.html opent
+Options -Indexes

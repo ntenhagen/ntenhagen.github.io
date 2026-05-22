@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="nl">
+<head>
+	<meta charset="utf-8" />
+	<meta name="google" content="notranslate" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Radio Aalsmeer - Watertoren Webcam</title>
+	<link rel="icon" type="image/svg+xml" href="radio-aalsmeer-logo.svg" />
+	<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
+	<style>
+		html, body {
+			margin: 0;
+			height: 100%;
+			width: 100%;
+			background: #000;
+			color: #fff;
+			font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+			overflow: hidden;
+		}
+
+		#container {
+			position: fixed;
+			inset: 0;
+			overflow: hidden;
+			background: #000;
+		}
+
+		video {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+			background: #000;
+			opacity: 0;
+			transition: opacity 800ms ease;
+			will-change: opacity;
+		}
+
+		video.visible { opacity: 1; }
+
+		.logo-badge {
+			position: fixed;
+			top: 30px;
+			right: 50px;
+			width: 100px;
+			height: 100px;
+			box-sizing: border-box;
+			background: #af1280 url('radio-aalsmeer-logo-white.svg') no-repeat center center;
+			background-size: 75%;
+			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+			z-index: 20;
+		}
+
+		.clock {
+			position: fixed;
+			top: 130px;
+			right: 50px;
+			width: 100px;
+			height: 24px;
+			background: #fcba02;
+			color: #af1280;
+			line-height: 22px;
+			text-align: center;
+			font-weight: 600;
+			font-family: "Titillium Web", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+			font-size: 16px;
+			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+			z-index: 20;
+			user-select: none;
+		}
+
+		.clock__sep {
+			animation: clock-pulse 1s ease-out infinite;
+			opacity: 0;
+			display: inline-block;
+		}
+
+		@keyframes clock-pulse {
+			0%   { opacity: 0; }
+			50%  { opacity: 1; }
+			100% { opacity: 0; }
+		}
+
+		@media (max-width: 600px) {
+			.logo-badge { top: 16px; right: 16px; width: 72px; height: 72px; }
+			.clock     { top: 92px; right: 16px; width: 72px; height: 22px; line-height: 20px; font-size: 14px; }
+		}
+	</style>
+</head>
+<body>
+	<div id="container">
+		<video id="video" autoplay muted playsinline webkit-playsinline preload="auto" x-webkit-airplay="allow"></video>
+	</div>
+
+	<div class="logo-badge" role="img" aria-label="Radio Aalsmeer"></div>
+
+	<div class="clock" aria-label="Tijd">
+		<span id="clock-h">--</span><span class="clock__sep">:</span><span id="clock-m">--</span>
+	</div>
+
+<script>
+(function () {
+	'use strict';
+
+	var STREAMS = [
+		{ id: 1, url: 'https://dov.radioaalsmeer.nl:8443/hls/1059_watertoren1/index.m3u8' },
+		{ id: 2, url: 'https://dov.radioaalsmeer.nl:8443/hls/1059_watertoren2/index.m3u8' }
+	];
+
+	var COOKIE_NAME = 'ra_last_cam';
+	var COOKIE_DAYS = 365;
+	var BASE_RETRY_MS = 2500;
+
+	var video = document.getElementById('video');
+
+	var hlsInstance = null;
+	var currentStream = null;
+	var retryCount = 0;
+	var retryTimer = null;
+
+	function fadeIn() { video.classList.add('visible'); }
+	function fadeOut() { video.classList.remove('visible'); }
+
+	function setCookie(name, value, days) {
+		var expires = '';
+		if (days) {
+			var d = new Date();
+			d.setTime(d.getTime() + days * 86400000);
+			expires = '; expires=' + d.toUTCString();
+		}
+		document.cookie = name + '=' + encodeURIComponent(value) + expires + '; path=/; SameSite=Lax';
+	}
+
+	function getCookie(name) {
+		var match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g, '\\$1') + '=([^;]*)'));
+		return match ? decodeURIComponent(match[1]) : null;
+	}
+
+	function pickStream() {
+		var lastId = parseInt(getCookie(COOKIE_NAME), 10);
+		var next;
+		if (lastId === STREAMS[0].id) next = STREAMS[1];
+		else if (lastId === STREAMS[1].id) next = STREAMS[0];
+		else next = STREAMS[Math.floor(Math.random() * STREAMS.length)];
+		setCookie(COOKIE_NAME, String(next.id), COOKIE_DAYS);
+		return next;
+	}
+
+	// Robust play — handle autoplay blocks by retrying on first user gesture.
+	function safePlay(v) {
+		v.muted = true;
+		v.playsInline = true;
+		v.setAttribute('playsinline', '');
+		v.setAttribute('webkit-playsinline', '');
+		var p = v.play();
+		if (p && typeof p.catch === 'function') {
+			p.catch(function () {
+				var resume = function () { v.play().catch(function () {}); };
+				document.body.addEventListener('click', resume, { once: true });
+				document.body.addEventListener('touchend', resume, { once: true, passive: true });
+			});
+		}
+	}
+
+	function scheduleReload(stream, delayOverride) {
+		if (retryTimer) clearTimeout(retryTimer);
+		retryCount++;
+		var wait = typeof delayOverride === 'number'
+			? delayOverride
+			: Math.min(15000, BASE_RETRY_MS * Math.pow(1.5, Math.min(retryCount - 1, 6)));
+		fadeOut();
+		retryTimer = setTimeout(function () { loadStream(stream); }, wait);
+	}
+
+	function destroyHls() {
+		if (hlsInstance) {
+			try { hlsInstance.destroy(); } catch (e) {}
+			hlsInstance = null;
+		}
+	}
+
+	function loadStream(stream) {
+		destroyHls();
+		currentStream = stream;
+		fadeOut();
+
+		var nativeHls = !!video.canPlayType && (video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL'));
+		var useHlsJs = window.Hls && window.Hls.isSupported && window.Hls.isSupported();
+
+		if (useHlsJs && !nativeHls) {
+			var inst = new Hls({
+				liveDurationInfinity: true,
+				enableWorker: true,
+				lowLatencyMode: true
+			});
+			hlsInstance = inst;
+
+			// attachMedia FIRST, then loadSource on MEDIA_ATTACHED (mirrors known-good pattern).
+			inst.attachMedia(video);
+			inst.on(Hls.Events.MEDIA_ATTACHED, function () {
+				inst.loadSource(stream.url);
+			});
+			inst.on(Hls.Events.MANIFEST_PARSED, function () {
+				retryCount = 0;
+				safePlay(video);
+			});
+			inst.on(Hls.Events.LEVEL_LOADED, function () {
+				safePlay(video);
+			});
+			inst.on(Hls.Events.ERROR, function (event, data) {
+				console.warn('HLS error', data);
+				if (!data || !data.fatal) return;
+				try { inst.destroy(); } catch (e) {}
+				if (hlsInstance === inst) hlsInstance = null;
+				scheduleReload(stream);
+			});
+		} else if (nativeHls) {
+			if (video.src !== stream.url) video.src = stream.url;
+			try { video.load(); } catch (e) {}
+			var onReady = function () {
+				video.removeEventListener('loadeddata', onReady);
+				video.removeEventListener('canplay', onReady);
+				retryCount = 0;
+				safePlay(video);
+			};
+			video.addEventListener('loadeddata', onReady, { once: true });
+			video.addEventListener('canplay', onReady, { once: true });
+			video.addEventListener('error', function onErr() {
+				video.removeEventListener('error', onErr);
+				scheduleReload(stream);
+			});
+			safePlay(video);
+		}
+	}
+
+	// Per-frame tick: drives both the fade-in (first real frame on screen)
+	// and a watchdog that reloads if frames stop arriving for >8s.
+	var lastFrameTime = performance.now();
+	var hasRvfc = typeof video.requestVideoFrameCallback === 'function';
+	function frameTick() {
+		lastFrameTime = performance.now();
+		retryCount = 0;
+		fadeIn();
+		if (hasRvfc) video.requestVideoFrameCallback(frameTick);
+		else setTimeout(frameTick, 500);
+	}
+	if (hasRvfc) video.requestVideoFrameCallback(frameTick);
+	else video.addEventListener('playing', function () { frameTick(); });
+
+	setInterval(function () {
+		if (!currentStream || video.paused) return;
+		if (performance.now() - lastFrameTime > 8000) {
+			console.warn('Watchdog: no frames for >8s, reloading');
+			loadStream(currentStream);
+		}
+	}, 2000);
+
+	// Fade back out on any stall/wait so the buffer itself isn't visible.
+	video.addEventListener('waiting', fadeOut);
+	video.addEventListener('stalled', fadeOut);
+	video.addEventListener('ended', function () {
+		fadeOut();
+		if (currentStream) scheduleReload(currentStream, 1000);
+	});
+
+	document.addEventListener('visibilitychange', function () {
+		if (!document.hidden && video.paused) safePlay(video);
+	});
+
+	window.addEventListener('beforeunload', destroyHls);
+
+	loadStream(pickStream());
+
+	// Clock — update every second, align ticks to the wall clock.
+	var clockH = document.getElementById('clock-h');
+	var clockM = document.getElementById('clock-m');
+	function pad(n) { return n < 10 ? '0' + n : '' + n; }
+	function updateClock() {
+		var now = new Date();
+		clockH.textContent = pad(now.getHours());
+		clockM.textContent = pad(now.getMinutes());
+	}
+	updateClock();
+	setTimeout(function tick() {
+		updateClock();
+		setTimeout(tick, 1000 - (Date.now() % 1000));
+	}, 1000 - (Date.now() % 1000));
+})();
+</script>
+</body>
+</html>

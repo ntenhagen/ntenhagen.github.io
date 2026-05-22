@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sI \"https://dov.radioaalsmeer.nl:8443/hls/1059_watertoren1/index.m3u8\")",
+      "Bash(curl -s \"https://dov.radioaalsmeer.nl:8443/hls/1059_watertoren1/index.m3u8\")",
+      "Bash(curl -sL \"https://ratv.radioguys.nl\" -o /tmp/ratv.html)",
+      "Read(//tmp/**)",
+      "Bash(grep -iE \"logo|badge|background-yellow|background:#|background-color\" /tmp/ratv.html | head -40)",
+      "Bash(curl -sL \"https://ratv.radioguys.nl/css/style.css\" -o /tmp/ratv-style.css)",
+      "Bash(curl -sL \"https://radioaalsmeer.nl/wp-content/themes/radioaalsmeer/img/radio-aalsmeer-logo-white.svg\" -o /Users/nielstenhagen/Desktop/webcams/radio-aalsmeer-logo-white.svg)"
+    ]
+  }
+}
