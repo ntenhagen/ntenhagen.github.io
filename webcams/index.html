@@ -14,15 +14,20 @@
 			width: 100%;
 			background: #000;
 			color: #fff;
-			font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+			font-family: "Titillium Web", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
 			overflow: hidden;
 		}
 
-		#container {
-			position: fixed;
-			inset: 0;
-			overflow: hidden;
+		/* Vaste 1920x1080 stage — JS schaalt 'm naar de viewport. */
+		#stage {
+			position: absolute;
+			top: 0;
+			left: 0;
+			width: 1920px;
+			height: 1080px;
+			transform-origin: top left;
 			background: #000;
+			overflow: hidden;
 		}
 
 		video {
@@ -39,49 +44,50 @@
 
 		video.visible { opacity: 1; }
 
+		/* Logo + klok: ratv's 720p-maten × 1.5 = 1080p-coördinaten. */
 		.logo-badge {
-			position: fixed;
-			top: 30px;
-			right: 50px;
-			width: 140px;
-			height: 140px;
+			position: absolute;
+			top: 45px;
+			right: 75px;
+			width: 150px;
+			height: 150px;
 			box-sizing: border-box;
 			background: #af1280 url('radio-aalsmeer-logo-white.svg') no-repeat center center;
 			background-size: 75%;
-			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+			box-shadow: 0 3px 18px rgba(0, 0, 0, 0.4);
 			z-index: 20;
 		}
 
 		.clock {
-			position: fixed;
-			top: 170px;
-			right: 50px;
-			width: 140px;
-			height: 44px;
+			position: absolute;
+			top: 195px;
+			right: 75px;
+			width: 150px;
+			height: 36px;
 			background: #fcba02;
 			color: #af1280;
-			line-height: 40px;
+			line-height: 33px;
 			text-align: center;
 			font-weight: 600;
 			font-family: "Titillium Web", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
-			font-size: 29px;
-			box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+			font-size: 32px;
+			box-shadow: 0 3px 18px rgba(0, 0, 0, 0.4);
 			z-index: 20;
 			user-select: none;
 		}
 
 		.error-msg {
-			position: fixed;
+			position: absolute;
 			top: 50%;
 			left: 50%;
 			transform: translate(-50%, -50%);
 			color: #fff;
 			background: rgba(0, 0, 0, 0.7);
-			padding: 18px 32px;
-			border-radius: 6px;
-			font-size: 22px;
+			padding: 27px 48px;
+			border-radius: 9px;
+			font-size: 33px;
 			font-weight: 600;
-			letter-spacing: 0.5px;
+			letter-spacing: 0.75px;
 			text-align: center;
 			z-index: 15;
 			pointer-events: none;
@@ -102,26 +108,20 @@
 			50%  { opacity: 1; }
 			100% { opacity: 0; }
 		}
-
-		@media (max-width: 600px) {
-			.logo-badge { top: 16px; right: 16px; width: 90px; height: 90px; }
-			.clock     { top: 106px; right: 16px; width: 90px; height: 32px; line-height: 28px; font-size: 22px; }
-			.error-msg { font-size: 17px; padding: 14px 22px; }
-		}
 	</style>
 </head>
 <body>
-	<div id="container">
+	<div id="stage">
 		<video id="video" autoplay muted playsinline webkit-playsinline preload="auto" x-webkit-airplay="allow"></video>
+
+		<div class="logo-badge" role="img" aria-label="Radio Aalsmeer"></div>
+
+		<div class="clock" aria-label="Tijd">
+			<span id="clock-h">--</span><span class="clock__sep">:</span><span id="clock-m">--</span>
+		</div>
+
+		<div class="error-msg" id="error-msg" role="alert">Camera kan niet laden</div>
 	</div>
-
-	<div class="logo-badge" role="img" aria-label="Radio Aalsmeer"></div>
-
-	<div class="clock" aria-label="Tijd">
-		<span id="clock-h">--</span><span class="clock__sep">:</span><span id="clock-m">--</span>
-	</div>
-
-	<div class="error-msg" id="error-msg" role="alert">Camera kan niet laden</div>
 
 <script>
 (function () {
@@ -345,6 +345,24 @@
 	window.addEventListener('beforeunload', destroyHls);
 
 	loadStream(pickStream());
+
+	// Stage-schaling: vaste 1920x1080 canvas dat fit-to-viewport schaalt
+	// (contain). Op 16:9-schermen vult het naadloos; op afwijkende aspect
+	// ratio's krijg je nette letterbox-randen i.p.v. een vervormd beeld.
+	var stage = document.getElementById('stage');
+	function scaleStage() {
+		var sx = window.innerWidth / 1920;
+		var sy = window.innerHeight / 1080;
+		var s = Math.min(sx, sy);
+		stage.style.transform =
+			'translate(' +
+			((window.innerWidth - 1920 * s) / 2) + 'px,' +
+			((window.innerHeight - 1080 * s) / 2) + 'px) ' +
+			'scale(' + s + ')';
+	}
+	scaleStage();
+	window.addEventListener('resize', scaleStage);
+	window.addEventListener('orientationchange', scaleStage);
 
 	// Clock — update every second, align ticks to the wall clock.
 	var clockH = document.getElementById('clock-h');
