@@ -18,7 +18,27 @@
 			overflow: hidden;
 		}
 
-		/* Vaste 1920x1080 stage — JS schaalt 'm naar de viewport. */
+		/* Video staat BUITEN de stage en is altijd beeldvullend: ongeacht
+		   resolutie of aspect-ratio vult de stream het hele venster. */
+		video {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100vw;
+			height: 100vh;
+			object-fit: cover;
+			background: #000;
+			opacity: 0;
+			transition: opacity 800ms ease;
+			will-change: opacity;
+			z-index: 0;
+		}
+
+		video.visible { opacity: 1; }
+
+		/* Vaste 1920x1080 stage voor de overlay — JS schaalt 'm naar de
+		   viewport (contain), zodat logo + klok altijd proportioneel
+		   in beeld blijven over de stream heen. */
 		#stage {
 			position: absolute;
 			top: 0;
@@ -26,23 +46,9 @@
 			width: 1920px;
 			height: 1080px;
 			transform-origin: top left;
-			background: #000;
-			overflow: hidden;
+			pointer-events: none;
+			z-index: 10;
 		}
-
-		video {
-			position: absolute;
-			inset: 0;
-			width: 100%;
-			height: 100%;
-			object-fit: cover;
-			background: #000;
-			opacity: 0;
-			transition: opacity 800ms ease;
-			will-change: opacity;
-		}
-
-		video.visible { opacity: 1; }
 
 		/* Logo + klok: ratv's 720p-maten × 1.5 = 1080p-coördinaten. */
 		.logo-badge {
@@ -64,10 +70,12 @@
 			right: 75px;
 			width: 150px;
 			height: 36px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
 			background: #fcba02;
 			color: #af1280;
-			line-height: 33px;
-			text-align: center;
+			line-height: 1;
 			font-weight: 600;
 			font-family: "Titillium Web", system-ui, "Segoe UI", Roboto, Arial, sans-serif;
 			font-size: 32px;
@@ -111,9 +119,9 @@
 	</style>
 </head>
 <body>
-	<div id="stage">
-		<video id="video" autoplay muted playsinline webkit-playsinline preload="auto" x-webkit-airplay="allow"></video>
+	<video id="video" autoplay muted playsinline webkit-playsinline preload="auto" x-webkit-airplay="allow"></video>
 
+	<div id="stage">
 		<div class="logo-badge" role="img" aria-label="Radio Aalsmeer"></div>
 
 		<div class="clock" aria-label="Tijd">
