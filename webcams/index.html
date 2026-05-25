@@ -43,8 +43,8 @@
 			position: fixed;
 			top: 30px;
 			right: 50px;
-			width: 180px;
-			height: 180px;
+			width: 140px;
+			height: 140px;
 			box-sizing: border-box;
 			background: #af1280 url('radio-aalsmeer-logo-white.svg') no-repeat center center;
 			background-size: 75%;
@@ -54,9 +54,9 @@
 
 		.clock {
 			position: fixed;
-			top: 216px;
+			top: 170px;
 			right: 50px;
-			width: 180px;
+			width: 140px;
 			height: 44px;
 			background: #fcba02;
 			color: #af1280;
@@ -69,6 +69,27 @@
 			z-index: 20;
 			user-select: none;
 		}
+
+		.error-msg {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			color: #fff;
+			background: rgba(0, 0, 0, 0.7);
+			padding: 18px 32px;
+			border-radius: 6px;
+			font-size: 22px;
+			font-weight: 600;
+			letter-spacing: 0.5px;
+			text-align: center;
+			z-index: 15;
+			pointer-events: none;
+			opacity: 0;
+			transition: opacity 400ms ease;
+		}
+
+		.error-msg.visible { opacity: 1; }
 
 		.clock__sep {
 			animation: clock-pulse 1s ease-out infinite;
@@ -83,8 +104,9 @@
 		}
 
 		@media (max-width: 600px) {
-			.logo-badge { top: 16px; right: 16px; width: 110px; height: 110px; }
-			.clock     { top: 134px; right: 16px; width: 110px; height: 36px; line-height: 32px; font-size: 25px; }
+			.logo-badge { top: 16px; right: 16px; width: 90px; height: 90px; }
+			.clock     { top: 106px; right: 16px; width: 90px; height: 32px; line-height: 28px; font-size: 22px; }
+			.error-msg { font-size: 17px; padding: 14px 22px; }
 		}
 	</style>
 </head>
@@ -98,6 +120,8 @@
 	<div class="clock" aria-label="Tijd">
 		<span id="clock-h">--</span><span class="clock__sep">:</span><span id="clock-m">--</span>
 	</div>
+
+	<div class="error-msg" id="error-msg" role="alert">Camera kan niet laden</div>
 
 <script>
 (function () {
@@ -157,14 +181,18 @@
 	var BASE_RETRY_MS = 2500;
 
 	var video = document.getElementById('video');
+	var errorEl = document.getElementById('error-msg');
 
 	var hlsInstance = null;
 	var currentStream = null;
 	var retryCount = 0;
 	var retryTimer = null;
+	var ERROR_THRESHOLD = 3; // toon foutmelding na N mislukte pogingen
 
 	function fadeIn() { video.classList.add('visible'); }
 	function fadeOut() { video.classList.remove('visible'); }
+	function showError() { if (errorEl) errorEl.classList.add('visible'); }
+	function hideError() { if (errorEl) errorEl.classList.remove('visible'); }
 
 	function setCookie(name, value, days) {
 		var expires = '';
@@ -214,6 +242,7 @@
 			? delayOverride
 			: Math.min(15000, BASE_RETRY_MS * Math.pow(1.5, Math.min(retryCount - 1, 6)));
 		fadeOut();
+		if (retryCount >= ERROR_THRESHOLD) showError();
 		retryTimer = setTimeout(function () { loadStream(stream); }, wait);
 	}
 
@@ -285,6 +314,7 @@
 	function frameTick() {
 		lastFrameTime = performance.now();
 		retryCount = 0;
+		hideError();
 		fadeIn();
 		if (hasRvfc) video.requestVideoFrameCallback(frameTick);
 		else setTimeout(frameTick, 500);
